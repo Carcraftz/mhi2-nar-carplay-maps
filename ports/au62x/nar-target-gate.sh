@@ -36,4 +36,8 @@ say 'TARGET_GATE=PASS MHI2_US_AU62x_P5181 MU1463 PDC=OFF'
 [ $# -ge 1 ] || fail 'patched pinned donor install.sh path required'
 donor=$1; shift
 [ -f "$donor" ] || fail "donor installer missing: $donor"
+# QNX sh with nounset rejects an empty "$@" after shifting the donor path.
+if [ "$#" -eq 0 ]; then
+    exec sh "$donor"
+fi
 exec sh "$donor" "$@"

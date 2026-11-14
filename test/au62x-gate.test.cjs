@@ -51,3 +51,34 @@ test('AU62x exact target gate accepts P5181, rejects drift and prohibits PDC', {
   assert.notEqual(r.status, 0);
   assert.match(r.stdout, /HMI mismatch/);
 });
+
+
+test('AU62x installer handoff preserves zero or multiple arguments and rejects drift', () => {
+  const f = makeFixture();
+  const donor = join(dirname(f.app), 'mock donor.sh');
+  writeFileSync(donor, 'printf "DONOR_ARGC=%s\\n" "$#"\nif [ "$#" -gt 0 ]; then printf "ARG=%s\\n" "$@"; fi\n');
+  function invoke(args, extra = {}) {
+    return spawnSync('sh', [gate, donor, ...args], { encoding: 'utf8', env: {
+      ...process.env, AU62_APP: f.app, AU62_SYS: f.sys, AU62_IFS: f.ifs,
+      AU62_CHECK_ONLY: '0', ...extra
+    }});
+  }
+  let r = invoke([]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DONOR_ARGC=0/);
+  r = invoke(['one two', 'three']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DONOR_ARGC=2/);
+  assert.match(r.stdout, /ARG=one two/);
+  assert.match(r.stdout, /ARG=three/);
+  r = invoke([], {AU62_CHECK_ONLY: '1'});
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /DONOR_ARGC/);
+  r = invoke([], {PDC: '1'});
+  assert.notEqual(r.status, 0);
+  assert.doesNotMatch(r.stdout, /DONOR_ARGC/);
+  writeFileSync(join(f.app, 'eso/hmi/version.properties'), 'HMI_Version:WRONG\n');
+  r = invoke([]);
+  assert.notEqual(r.status, 0);
+  assert.doesNotMatch(r.stdout, /DONOR_ARGC/);
+});
